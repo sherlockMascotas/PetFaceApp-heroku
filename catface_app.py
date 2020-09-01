@@ -35,9 +35,6 @@ default_img_path = 'https://petfacebucket.s3.amazonaws.com'
 test_distance = 0.6
 folder_path = 'cat_test'
 
-AWS_ACCESS_KEY_ID='AKIAJTX6HPQEDE2B3BVQ'
-AWS_SECRET_ACCESS_KEY='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'
-
 s3 = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID,
          aws_secret_access_key= AWS_SECRET_ACCESS_KEY)
 
