@@ -1,6 +1,7 @@
 import streamlit as st
 import tensorflow as tf
 import boto3
+import os
 import pandas as pd
 import json
 import numpy as np
@@ -37,8 +38,8 @@ default_img_path = 'https://petfacebucket.s3.amazonaws.com'
 test_distance = 0.6
 folder_path = 'cat_test'
 
-s3 = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID,
-         aws_secret_access_key= AWS_SECRET_ACCESS_KEY)
+s3 = boto3.client('s3', aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+         aws_secret_access_key= os.environ['AWS_SECRET_ACCESS_KEY'])
 
 def file_selector(folder_path='cat_test'):
     filenames = s3.list_objects_v2(Bucket='petfacebucket', Prefix='cat_test/')['Contents']
