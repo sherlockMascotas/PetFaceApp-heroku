@@ -30,8 +30,10 @@ st.sidebar.header('User Input')
 # Collects user input features into dataframe
 #uploaded_file = st.sidebar.file_uploader("Upload your input image file", type=["png",'jpg','jpeg'])
 
+#json_path = 'https://petfacebucket.s3.amazonaws.com/db_cat_test.json'
 json_path = 'db_cat_test.json'
 default_img_path = 'https://petfacebucket.s3.amazonaws.com'
+
 test_distance = 0.6
 folder_path = 'cat_test'
 
@@ -48,8 +50,10 @@ def file_selector(folder_path='cat_test'):
 
 filename = file_selector(folder_path)
 st.subheader("You selected: {}".format(filename.split(".")[-3]))
+
 #model_path = 'https://petfacebucket.s3.amazonaws.com/catfacenetEffNet.20200829.ckpt-final.h5'
 model_path = 'catfacenetEffNet.20200829.ckpt-final.h5'
+
 model = tf.keras.models.load_model(
             model_path,
             custom_objects={'triplet':triplet, 'triplet_acc':triplet_acc})
