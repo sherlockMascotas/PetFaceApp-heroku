@@ -1,6 +1,6 @@
 import streamlit as st
 import tensorflow as tf
-import os
+import boto3
 import pandas as pd
 import json
 import numpy as np
@@ -30,20 +30,33 @@ st.sidebar.header('User Input')
 # Collects user input features into dataframe
 #uploaded_file = st.sidebar.file_uploader("Upload your input image file", type=["png",'jpg','jpeg'])
 
-json_path = 'https://petfacebucket.s3.amazonaws.com/db_cat_test.json'
-default_img_path = 'https://petfacebucket.s3.amazonaws.com/'
+#json_path = 'https://petfacebucket.s3.amazonaws.com/db_cat_test.json'
+json_path = 'db_cat_test.json'
+default_img_path = 'https://petfacebucket.s3.amazonaws.com'
+
 test_distance = 0.6
 folder_path = 'cat_test'
 
+AWS_ACCESS_KEY_ID='AKIAJTX6HPQEDE2B3BVQ'
+AWS_SECRET_ACCESS_KEY='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'
+
+s3 = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID,
+         aws_secret_access_key= AWS_SECRET_ACCESS_KEY)
+
 def file_selector(folder_path='cat_test'):
-    filenames = os.listdir(os.path.join(default_img_path,folder_path))
+    filenames = s3.list_objects_v2(Bucket='petfacebucket', Prefix='cat_test/')['Contents']
+    filenames = [x['Key'] for x in filenames if x['Key']!= 'cat_test/']
+    filenames = [x.split("/")[-1] for x in filenames]
     selected_filename = st.sidebar.selectbox('Select a file for test', filenames)
     return selected_filename
 
 
 filename = file_selector(folder_path)
 st.subheader("You selected: {}".format(filename.split(".")[-3]))
-model_path = 'https://petfacebucket.s3.amazonaws.com/catfacenetEffNet.20200829.ckpt-final.h5'
+
+#model_path = 'https://petfacebucket.s3.amazonaws.com/catfacenetEffNet.20200829.ckpt-final.h5'
+model_path = 'catfacenetEffNet.20200829.ckpt-final.h5'
+
 model = tf.keras.models.load_model(
             model_path,
             custom_objects={'triplet':triplet, 'triplet_acc':triplet_acc})
@@ -53,7 +66,10 @@ with open(json_path, "r") as jsonfile:
 
 
 if filename is not None:
-    img = io.imread(os.path.join(default_img_path, folder_path, filename))
+
+    file_path = default_img_path + "/" + folder_path + "/" + filename
+    img = io.imread(file_path)
+
     if img.shape != (224,224,3):
         img = transform.resize(img, output_shape=(224,224,3))
     st.image(img, width=224)
@@ -82,11 +98,13 @@ if filename is not None:
             best_pet = df_mean_dist.pet_number[i]
             st.subheader("Name: {}".format(best_pet.split("/")[-1]))
             best_dist = df_mean_dist['mean'][i]
-            best_pet_path = default_img_path + best_pet
-            list_imgs = [x for x in os.listdir(best_pet_path) if ".DS" not in x]
+            best_pet_path = default_img_path + "/" + best_pet
+            #list_imgs = [x for x in os.listdir(best_pet_path) if ".DS" not in x]
             #sample_img = np.random.choice(list_imgs)
             sample_img = df_dist[df_dist.pet_number==best_pet].img_name.values[0]
-            best_img = io.imread(os.path.join(default_img_path, sample_img))
+
+            best_img_path = default_img_path + "/" + sample_img
+            best_img = io.imread(best_img_path)
 
             my_bar.progress(1/max_imgs * (i+1) )
 
