@@ -17,7 +17,7 @@ from utils import load_models, get_OD_results, parse_labels, \
     get_similar_pictures
 
 # For local testing
-from env_variables import set_env_variables
+#from env_variables import set_env_variables
 
 
 def predict_od_kpt_helper(img_np, img_pil, box_thresh=0.8):
