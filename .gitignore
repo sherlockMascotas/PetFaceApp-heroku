@@ -6,3 +6,4 @@
 .idea/PetFaceApp-heroku.iml
 .DS_Store
 *.DS_Store
+env_variables.py
