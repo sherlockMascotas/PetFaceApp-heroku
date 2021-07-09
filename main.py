@@ -5,40 +5,21 @@ import pandas as pd
 import json
 import numpy as np
 import os
+import io
 import boto3
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-
-
+import requests
+import base64
 from utils_face import fix_eyes, get_face_aligned
-from utils import load_models, get_OD_results, parse_labels, \
-    get_kpts, preprocess4kpts, postprocess4kpts, \
-    get_embedding, \
-    get_similar_pictures
+
+from utils import get_similar_pictures
 
 # For local testing
 #from env_variables import set_env_variables
+url_base = 'http://52.54.77.218:8080/'
 
-
-def predict_od_kpt_helper(img_np, img_pil, box_thresh=0.8):
-    boxes, labels = get_OD_results(img_np, det_model, box_thresh=box_thresh)
-    labels = parse_labels(labels)
-    # logger.debug("OD Results successfully returned")
-    pets = preprocess4kpts(img_pil, boxes)
-    # logger.debug("number of pets: " + str(len(pets)))
-    # logger.debug("processing only first pet")
-    # logger.debug("processing all pets")
-    kpts_all = list()
-    for pet in pets:
-        kpt_i = get_kpts(pet['pet'], kpt_model)
-        kpts_all.append(kpt_i)
-    # logger.debug('Keypoints successfully generated')
-    kpts_all = np.array(postprocess4kpts(pets, kpts_all))
-    # logger.info('Keypoints successfully postprocesed')
-    return boxes, labels, kpts_all
-
-
-if __name__ == '__main__':
+def main():
     # INITIALIZATION
     # For local testing
     #set_env_variables()
@@ -60,42 +41,45 @@ if __name__ == '__main__':
     default_img_path = 'https://petfacebucket.s3.amazonaws.com'
     folder_path = 'cat_test'
 
-    ##  LOAD MODELS
-    det_model, kpt_model, catface_model, dogface_model = load_models()
-    ### Models parameters
-    SIZE = (224, 224, 3)
     test_distance = 0.6
-    box_thresh = 0.8
 
     ## LOAD DATABASE
     json_path = '00_db/db_' + pet_type + '.json'
     #    json_path = 'db_cat.json'
     with open(json_path, "r") as jsonfile:
-        data = json.load(jsonfile)
+        db = json.load(jsonfile)
 
     if uploaded_file is not None:
         st.write("""
-            # Test PetFace App
-            """)
+                # Test PetFace App
+                """)
 
         img_pil = Image.open(uploaded_file)
         img_np = np.array(img_pil)
         img_np = img_np[:, :, :3]
 
-        boxes, labels, kpts = predict_od_kpt_helper(img_np, img_pil, box_thresh=box_thresh)
+        url = url_base + 'pet_face'
+        buffer = io.BytesIO()
+        img_pil.save(buffer, format=img_pil.format)
+        img_b64 = base64.b64encode(buffer.getvalue())
+        data = {'pet_type': [pet_type], 'image': img_b64.decode(), 'is_base64': True}
+        response = requests.post(url, data=json.dumps(data))
+
+        boxes = response.json()['boxes']
+        kpts = response.json()['kpts']
+        labels = response.json()['pet_types']
+        embs = response.json()['embs']
+
 
         if not st.sidebar.checkbox("Wrong picture processed"):
 
-            if len(boxes > 0):
+            if len(boxes) > 0:
 
                 col1, col2 = st.beta_columns(2)
 
                 # processing only first pet
-                kpt = kpts[0]
-                y,x,y2,x2 = boxes[0]
-
-                if len(kpt) > 2:
-                    leye, reye, nose = fix_eyes(kpt[0], kpt[1], kpt[2], num_eyes=2)
+                kpt = np.array(kpts[0])
+                y, x, y2, x2 = boxes[0]
 
                 fig, ax = plt.subplots(1)
                 ax.imshow(img_np)
@@ -108,17 +92,14 @@ if __name__ == '__main__':
                 col2.subheader(
                     "This is your original picture with eyes and nose detected. Below you'll find your pet face aligned")
 
-                face_aligned = get_face_aligned(img_np, leye, reye, nose, pet_type, SIZE)
+                leye, reye, nose = fix_eyes(kpt[0], kpt[1], kpt[2], num_eyes=2)
+                face_aligned = get_face_aligned(img_np, leye, reye, nose, pet_type)
                 col2.image(face_aligned, use_column_width='auto')
                 col2.subheader(
                     "Does the picture is correctly detected?. Please answer in the sidebar")
-                if pet_type == 'cat':
-                    fc_model = catface_model
-                else:
-                    fc_model = dogface_model
 
-                emb = get_embedding(face_aligned[np.newaxis,...], fc_model)
-                get_similar_pictures(data, emb, default_img_path, pet_type, test_distance=test_distance)
+                emb = np.array(embs[0])
+                get_similar_pictures(db, emb, default_img_path, pet_type, test_distance=test_distance)
             else:
                 st.write("No {}s found, please check 'Wrong picture processed to manually annotate'".format(pet_type))
 
@@ -163,22 +144,26 @@ if __name__ == '__main__':
                     if len(kpts) > 2:
                         leye, reye, nose = fix_eyes(kpts[0], kpts[1], kpts[2], num_eyes=2)
 
-                    face_aligned = get_face_aligned(img_np, leye, reye, nose, pet_type, SIZE)
+                    face_aligned = get_face_aligned(img_np, leye, reye, nose, pet_type)
 
                     col1, col2 = st.beta_columns(2)
                     col2.subheader("This is the picture of your {} aligned!".format(pet_type))
                     col1.image(face_aligned)
 
-                    if pet_type == 'cat':
-                        fc_model = catface_model
-                    else:
-                        fc_model = dogface_model
-                    emb = get_embedding(face_aligned[np.newaxis,...], fc_model)
-                    get_similar_pictures(data, emb, default_img_path, pet_type, test_distance=test_distance)
+                    url_emb = url_base + 'emb'
+                    data = {'image':face_aligned.tolist(), 'pet_type':pet_type}
+                    response_emb = requests.post(url_emb, data=json.dumps(data))
+
+                    emb = np.array(response_emb.json()['emb'])
+                    get_similar_pictures(db, emb, default_img_path, pet_type, test_distance=test_distance)
 
     else:
         st.write("""
-        # Test PetFace App
-        This app is a *test*, please upload an image and specify the pet type 
-        at the menu on the left
-        """)
+            # Test PetFace App
+            This app is a *test*, please upload an image and specify the pet type 
+            at the menu on the left
+            """)
+
+
+if __name__ == '__main__':
+    main()
