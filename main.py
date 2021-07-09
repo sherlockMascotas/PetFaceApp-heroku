@@ -17,12 +17,12 @@ from utils import get_similar_pictures
 
 # For local testing
 #from env_variables import set_env_variables
-url_base = 'http://52.54.77.218:8080/'
 
 def main():
     # INITIALIZATION
     # For local testing
     #set_env_variables()
+    url_base = os.environ['URL_BASE']
     ## SIDEBAR
     st.set_option('deprecation.showfileUploaderEncoding', False)
     st.sidebar.header('User Input')
