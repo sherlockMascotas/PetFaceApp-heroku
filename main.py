@@ -99,7 +99,10 @@ def main():
                     "Does the picture is correctly detected?. Please answer in the sidebar")
 
                 emb = np.array(embs[0])
+                t = st.empty()
+                t.info("getting similar {}s in our db".format(pet_type))
                 get_similar_pictures(db, emb, default_img_path, pet_type, test_distance=test_distance)
+                t.success("Success!")
             else:
                 st.write("No {}s found, please check 'Wrong picture processed to manually annotate'".format(pet_type))
 
@@ -155,7 +158,10 @@ def main():
                     response_emb = requests.post(url_emb, data=json.dumps(data))
 
                     emb = np.array(response_emb.json()['emb'])
+                    t = st.empty()
+                    t.info("getting similar {}s in our db".format(pet_type))
                     get_similar_pictures(db, emb, default_img_path, pet_type, test_distance=test_distance)
+                    t.success("Success!")
 
     else:
         st.write("""
