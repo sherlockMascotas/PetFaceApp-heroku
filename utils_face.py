@@ -1,8 +1,6 @@
 import numpy as np
-from skimage import  transform
+from skimage import transform
 import logging
-
-import streamlit as st
 
 
 def fix_eyes(a, b, c, num_eyes):
@@ -10,6 +8,7 @@ def fix_eyes(a, b, c, num_eyes):
     a, b -> eye coordinates
     c -> nose coordinates
     """
+    logger = logging.getLogger(__name__)
     nose = c
     if num_eyes == 1:
         # specified eye, if only 1 eye specified, leftEye = rightEye
@@ -32,7 +31,6 @@ def fix_eyes(a, b, c, num_eyes):
         inters = a + np.dot(ca, ab) / np.dot(ab, ab) * ab
         angle = np.degrees(np.arctan2(c[1] - inters[1], c[0] - inters[0]))
         angle = 360 + angle if angle < 0 else angle
-        # print(angle)
         if angle >= 0 and angle < 90:
             if a[1] > b[1]:
                 leye, reye = a, b
@@ -54,12 +52,14 @@ def fix_eyes(a, b, c, num_eyes):
             else:
                 leye, reye = b, a
     else:
-        print('error more that two eyes')
+        logger.info('error more that two eyes')
         leye, reye, nose = a, b, c
     return leye, reye, nose
 
 
 def solve_dog(coord, SIZE):
+    logger = logging.getLogger(__name__)
+    logger.debug("solving dog coordenates")
     A = np.array([
         [coord[0], -coord[1], 1, 0],
         [coord[1], coord[0], 0, 1],
@@ -89,10 +89,13 @@ def solve_dog(coord, SIZE):
     # b = [1*h/3,1*w/3,2*h/3,1*w/3]
     # b = [0.7*h/2.4,0.7*w/2.4,1.7*h/2.4,0.7*w/2.4]
     sol = np.linalg.inv(A.T.dot(A)).dot(A.T.dot(b))
+    logger.debug("solved dog coordenates")
     return np.array([[sol[0], -sol[1], sol[2]], [sol[1], sol[0], sol[3]], [0, 0, 1]])
 
 
 def solve_cat(coord, SIZE):
+    logger = logging.getLogger(__name__)
+    logger.debug("solving cat coordenates")
     A = np.array([
         [coord[0], -coord[1], 1, 0],
         [coord[1], coord[0], 0, 1],
@@ -118,6 +121,7 @@ def solve_cat(coord, SIZE):
         x2 = 1 / 2 + 1 / 6
     b = [x1 * h, y * w, x2 * h, y * w]
     sol = np.linalg.inv(A.T.dot(A)).dot(A.T.dot(b))
+    logger.debug("solved dog coordenates")
     return np.array([[sol[0], -sol[1], sol[2]], [sol[1], sol[0], sol[3]], [0, 0, 1]])
 
 
@@ -127,14 +131,16 @@ def solve_comb(coord, box_type, SIZE):
     else:
         return solve_dog(coord, SIZE)
 
-@st.cache
-def get_face_aligned(img_np, leye, reye, nose, pet_type, SIZE=(224,224,3)):
-    coord = np.array([leye, reye, nose]).reshape(6,)
-    M = solve_comb(coord, pet_type, SIZE)
 
+def get_face_aligned(img_np, leye, reye, nose, pet_type, SIZE=(224, 224, 3)):
+    logger = logging.getLogger(__name__)
+    coord = np.array([leye, reye, nose]).reshape(6, )
+    M = solve_comb(coord, pet_type, SIZE)
+    logger.debug("coordinates solved for face alignment")
     transformation = transform.warp(img_np, np.linalg.inv(M))
     h, w, c = SIZE
     transformation = transformation[:h, :w]
     if transformation.shape != SIZE:
         transformation = transform.resize(transformation, SIZE)
+    logger.debug("got transformation & scaled")
     return (transformation * 255).astype('uint8')
