@@ -54,13 +54,13 @@ def main():
                 # Test PetFace App
                 """)
 
-        img_pil = Image.open(uploaded_file)
+        img_pil = Image.open(uploaded_file).convert("RGB")
         img_np = np.array(img_pil)
         img_np = img_np[:, :, :3]
 
         url = url_base + 'pet_face'
         buffer = io.BytesIO()
-        img_pil.save(buffer, format=img_pil.format)
+        img_pil.save(buffer, format="JPEG")
         img_b64 = base64.b64encode(buffer.getvalue())
         data = {'pet_type': [pet_type], 'image': img_b64.decode(), 'is_base64': True}
         response = requests.post(url, data=json.dumps(data))
