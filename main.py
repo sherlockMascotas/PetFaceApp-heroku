@@ -17,12 +17,14 @@ from utils import get_similar_pictures
 
 # For local testing
 #from env_variables import set_env_variables
-url_base = 'http://52.54.77.218:8080/'
 
 def main():
     # INITIALIZATION
     # For local testing
     #set_env_variables()
+    url_base = os.environ['URL_BASE']
+    secret_key = os.environ['SECRET_KEY']
+    headers = {'Authorization': 'Token '+secret_key}
     ## SIDEBAR
     st.set_option('deprecation.showfileUploaderEncoding', False)
     st.sidebar.header('User Input')
@@ -54,109 +56,120 @@ def main():
                 # Test PetFace App
                 """)
 
-        img_pil = Image.open(uploaded_file)
+        img_pil = Image.open(uploaded_file).convert("RGB")
         img_np = np.array(img_pil)
         img_np = img_np[:, :, :3]
 
         url = url_base + 'pet_face'
         buffer = io.BytesIO()
-        img_pil.save(buffer, format=img_pil.format)
+        img_pil.save(buffer, format="JPEG")
         img_b64 = base64.b64encode(buffer.getvalue())
         data = {'pet_type': [pet_type], 'image': img_b64.decode(), 'is_base64': True}
-        response = requests.post(url, data=json.dumps(data))
+        response = requests.post(url, data=json.dumps(data), headers=headers)
+        if response.ok:
+            boxes = response.json()['boxes']
+            kpts = response.json()['kpts']
+            labels = response.json()['pet_types']
+            embs = response.json()['embs']
 
-        boxes = response.json()['boxes']
-        kpts = response.json()['kpts']
-        labels = response.json()['pet_types']
-        embs = response.json()['embs']
 
+            if not st.sidebar.checkbox("Wrong picture processed"):
 
-        if not st.sidebar.checkbox("Wrong picture processed"):
-
-            if len(boxes) > 0:
-
-                col1, col2 = st.beta_columns(2)
-
-                # processing only first pet
-                kpt = np.array(kpts[0])
-                y, x, y2, x2 = boxes[0]
-
-                fig, ax = plt.subplots(1)
-                ax.imshow(img_np)
-                rect = patches.Rectangle((x, y), x2 - x, y2 - y, linewidth=1, edgecolor='b', facecolor='none')
-                ax.add_patch(rect)
-                ax.plot(kpt[:, 0::2], kpt[:, 1::2], 'o')
-                plt.axis('off')
-
-                col1.pyplot(fig)
-                col2.subheader(
-                    "This is your original picture with eyes and nose detected. Below you'll find your pet face aligned")
-
-                leye, reye, nose = fix_eyes(kpt[0], kpt[1], kpt[2], num_eyes=2)
-                face_aligned = get_face_aligned(img_np, leye, reye, nose, pet_type)
-                col2.image(face_aligned, use_column_width='auto')
-                col2.subheader(
-                    "Does the picture is correctly detected?. Please answer in the sidebar")
-
-                emb = np.array(embs[0])
-                get_similar_pictures(db, emb, default_img_path, pet_type, test_distance=test_distance)
-            else:
-                st.write("No {}s found, please check 'Wrong picture processed to manually annotate'".format(pet_type))
-
-        else:
-            st.write("Please help us identify the eyes and the nose of your pet.")
-            st.write(
-                "Using the drawing tool at the sidebar select circle and annotate the eyes and nose of your pet (no particular order)")
-            st.write("You can also select rectangle from the drawing tool and create a rectangle around your pet head")
-            st.write("If necessary use the transform selection at the sidebar to modify your annotations; \n"
-                     "aditionaly use the undo, redo and trash buttons near the picture")
-
-            canvas_h = 300
-            canvas_w = 600
-
-            drawing_mode = st.sidebar.selectbox(
-                "Drawing tool:", ("circle", "rect", "transform")
-            )
-
-            canvas_result = st_canvas(
-                fill_color="rgba(255, 165, 0, 0.3)",  # Fixed fill color with some opacity
-                stroke_width=2,
-                stroke_color='blue',
-                background_color="",
-                background_image=img_pil,
-                update_streamlit=True,
-                drawing_mode=drawing_mode,
-                key="canvas",
-            )
-
-            if canvas_result.json_data is not None:
-                df = pd.json_normalize(canvas_result.json_data["objects"])
-                if len(df) > 1:
-                    leye, reye, nose = [], [], []
-                    kpts = df.loc[df.type == 'circle', ['left', 'top']].values
-
-                    h, w, _ = img_np.shape
-                    ratio_factor = (w / h) * (canvas_h / canvas_w)
-                    kpts = kpts * [(h / canvas_h) * ratio_factor,
-                                   (w / canvas_w) * (1 / ratio_factor)]
-                    if len(kpts) <= 2:
-                        leye, reye, nose = fix_eyes(kpts[0], kpts[0], kpts[1], num_eyes=1)
-                    if len(kpts) > 2:
-                        leye, reye, nose = fix_eyes(kpts[0], kpts[1], kpts[2], num_eyes=2)
-
-                    face_aligned = get_face_aligned(img_np, leye, reye, nose, pet_type)
+                if len(boxes) > 0:
 
                     col1, col2 = st.beta_columns(2)
-                    col2.subheader("This is the picture of your {} aligned!".format(pet_type))
-                    col1.image(face_aligned)
 
-                    url_emb = url_base + 'emb'
-                    data = {'image':face_aligned.tolist(), 'pet_type':pet_type}
-                    response_emb = requests.post(url_emb, data=json.dumps(data))
+                    # processing only first pet
+                    kpt = np.array(kpts[0])
+                    y, x, y2, x2 = boxes[0]
 
-                    emb = np.array(response_emb.json()['emb'])
-                    get_similar_pictures(db, emb, default_img_path, pet_type, test_distance=test_distance)
+                    fig, ax = plt.subplots(1)
+                    ax.imshow(img_np)
+                    rect = patches.Rectangle((x, y), x2 - x, y2 - y, linewidth=1, edgecolor='b', facecolor='none')
+                    ax.add_patch(rect)
+                    ax.plot(kpt[:, 0::2], kpt[:, 1::2], 'o')
+                    plt.axis('off')
 
+                    col1.pyplot(fig)
+                    col2.subheader(
+                        "This is your original picture with eyes and nose detected. Below you'll find your pet face aligned")
+
+                    leye, reye, nose = fix_eyes(kpt[0], kpt[1], kpt[2], num_eyes=2)
+                    face_aligned = get_face_aligned(img_np, leye, reye, nose, pet_type)
+                    col2.image(face_aligned, use_column_width='auto')
+                    col2.subheader(
+                        "Does the picture is correctly detected?. Please answer in the sidebar")
+
+                    if pet_type in labels:
+                        emb = np.array(embs[0])
+                        t = st.empty()
+                        t.info("getting similar {}s in our db".format(pet_type))
+                        get_similar_pictures(db, emb, default_img_path, pet_type, test_distance=test_distance)
+                        t.success("Success!")
+                    else:
+                        st.write("No {}s found, please check the pet type".format(pet_type))
+                else:
+                    st.write("No {}s found, please check 'Wrong picture processed to manually annotate'".format(pet_type))
+
+            else:
+                st.write("Please help us identify the eyes and the nose of your pet.")
+                st.write(
+                    "Using the drawing tool at the sidebar select circle and annotate the eyes and nose of your pet (no particular order)")
+                st.write("You can also select rectangle from the drawing tool and create a rectangle around your pet head")
+                st.write("If necessary use the transform selection at the sidebar to modify your annotations; \n"
+                         "aditionaly use the undo, redo and trash buttons near the picture")
+
+                canvas_h = 300
+                canvas_w = 600
+
+                drawing_mode = st.sidebar.selectbox(
+                    "Drawing tool:", ("circle", "rect", "transform")
+                )
+
+                canvas_result = st_canvas(
+                    fill_color="rgba(255, 165, 0, 0.3)",  # Fixed fill color with some opacity
+                    stroke_width=2,
+                    stroke_color='blue',
+                    background_color="",
+                    background_image=img_pil,
+                    update_streamlit=True,
+                    drawing_mode=drawing_mode,
+                    key="canvas",
+                )
+
+                if canvas_result.json_data is not None:
+                    df = pd.json_normalize(canvas_result.json_data["objects"])
+                    if len(df) > 1:
+                        leye, reye, nose = [], [], []
+                        kpts = df.loc[df.type == 'circle', ['left', 'top']].values
+
+                        h, w, _ = img_np.shape
+                        ratio_factor = (w / h) * (canvas_h / canvas_w)
+                        kpts = kpts * [(h / canvas_h) * ratio_factor,
+                                       (w / canvas_w) * (1 / ratio_factor)]
+                        if len(kpts) <= 2:
+                            leye, reye, nose = fix_eyes(kpts[0], kpts[0], kpts[1], num_eyes=1)
+                        if len(kpts) > 2:
+                            leye, reye, nose = fix_eyes(kpts[0], kpts[1], kpts[2], num_eyes=2)
+
+                        face_aligned = get_face_aligned(img_np, leye, reye, nose, pet_type)
+
+                        col1, col2 = st.beta_columns(2)
+                        col2.subheader("This is the picture of your {} aligned!".format(pet_type))
+                        col1.image(face_aligned)
+
+                        url_emb = url_base + 'emb'
+                        data = {'image':face_aligned.tolist(), 'pet_type':pet_type}
+
+                        response_emb = requests.post(url_emb, data=json.dumps(data), headers=headers)
+                        if response_emb.ok:
+                            emb = np.array(response_emb.json()['emb'])
+                            t = st.empty()
+                            t.info("getting similar {}s in our db".format(pet_type))
+                            get_similar_pictures(db, emb, default_img_path, pet_type, test_distance=test_distance)
+                            t.success("Success!")
+        else:
+            st.write("There was a problem connecting to the server, please try again later")
     else:
         st.write("""
             # Test PetFace App
