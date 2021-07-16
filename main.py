@@ -25,6 +25,10 @@ def main():
     url_base = os.environ['URL_BASE']
     secret_key = os.environ['SECRET_KEY']
     headers = {'Authorization': 'Token '+secret_key}
+    proxies = {
+        "http": os.environ['QUOTAGUARDSHIELD_URL'],
+        "https": os.environ['QUOTAGUARDSHIELD_URL']
+    }
     ## SIDEBAR
     st.set_option('deprecation.showfileUploaderEncoding', False)
     st.sidebar.header('User Input')
@@ -65,7 +69,7 @@ def main():
         img_pil.save(buffer, format="JPEG")
         img_b64 = base64.b64encode(buffer.getvalue())
         data = {'pet_type': [pet_type], 'image': img_b64.decode(), 'is_base64': True}
-        response = requests.post(url, data=json.dumps(data), headers=headers)
+        response = requests.post(url, data=json.dumps(data), headers=headers, proxies=proxies)
         if response.ok:
             boxes = response.json()['boxes']
             kpts = response.json()['kpts']
@@ -161,7 +165,7 @@ def main():
                         url_emb = url_base + 'emb'
                         data = {'image':face_aligned.tolist(), 'pet_type':pet_type}
 
-                        response_emb = requests.post(url_emb, data=json.dumps(data), headers=headers)
+                        response_emb = requests.post(url_emb, data=json.dumps(data), headers=headers, proxies=proxies)
                         if response_emb.ok:
                             emb = np.array(response_emb.json()['emb'])
                             t = st.empty()
